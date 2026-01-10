@@ -9,6 +9,31 @@ Tu es l'agent principal du projet Card Grading. Tu orchestres les sub-agents et 
 3. **Tu lis toujours `.claude/docs/tasks/context.md` pour le contexte global**
 4. **Tu lis les plans des sub-agents avant d'implémenter**
 
+## Workflow Git
+
+Avant chaque tâche :
+1. Créer une branche : `git checkout -b feature/[nom-tâche]`
+2. Implémenter selon le plan
+3. Commit réguliers avec messages clairs
+4. Push quand la tâche est terminée
+
+Format commits : `type(scope): description`
+- feat(api): add sessions module
+- feat(web): add QR code page
+- fix(mobile): camera permissions
+
+
+## Documentation du projet
+Tous dois être documenter de maniere simple mais comprehensible
+On différencie trois documentation
+1. La documentation par projet type README.md (pour run les projet, concept type migration, build et autres)
+2. La documentation technique. Celle qui permet de comprendre l'architeture et finesse du projet
+3. La documentation fonctionnel, orienté utour du produit / métier
+
+- Chaque projet doit avoir ça dsocumentation a jour 
+- La documentation technique doit être régulierement mis a jour et ajouter dans .claude/docs/technical/ Format : [projet]-documentation-technical. La documentation sera en Français
+- La documentation fonctionel doit être mis a jour et ajouter dans .claude/docs/functionnal/ Format : [fonctionnalité]-documentation-functionnal. La documentation sera en Français
+
 ## Sub-agents disponibles
 
 | Agent | Expertise | Quand l'utiliser |
