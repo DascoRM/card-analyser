@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ===== ENUMS =====
+
+enum SessionStatus {
+  PENDING
+  UPLOADING
+  ANALYZING
+  COMPLETED
+  FAILED
+  ARCHIVED
+}
+
+enum CardSide {
+  FRONT
+  BACK
+}
+
+enum GradeScale {
+  PCA
+  PSA
+}
+
+// ===== MODELS =====
+
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  name      String?
+  sessions  Session[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Session {
+  id          String        @id @default(uuid())
+  userId      Int
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Métadonnées de la carte
+  cardName    String?
+  cardSet     String?
+  cardYear    Int?
+  cardType    String?
+
+  // État de la session
+  status      SessionStatus @default(PENDING)
+
+  // Relations
+  images       SessionImage[]
+  gradeResults GradeResult[]
+
+  // Timestamps
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  completedAt DateTime?
+
+  @@index([userId, status])
+  @@index([createdAt])
+}
+
+model SessionImage {
+  id        String   @id @default(uuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Informations image
+  side      CardSide
+  url       String
+  filename  String
+  mimeType  String
+  size      Int
+  width     Int?
+  height    Int?
+
+  // Timestamps
+  uploadedAt DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+model GradeResult {
+  id           String     @id @default(uuid())
+  sessionId    String
+  session      Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Type de grading
+  scale        GradeScale
+
+  // Scores détaillés (1-10)
+  centering    Float
+  corners      Float
+  edges        Float
+  surface      Float
+  printQuality Float
+
+  // Note finale
+  finalGrade   Float
+  gradeLabel   String
+
+  // Confiance du modèle ML
+  confidence   Float?
+  modelVersion String?
+  analysisData Json?
+
+  // Timestamps
+  createdAt    DateTime   @default(now())
+
+  @@index([sessionId])
+}

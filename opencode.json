@@ -1,0 +1,16 @@
+{
+"$schema": "https://opencode.ai/config.json",
+"mcp": {
+"playwriter": {
+"type": "local",
+"command": ["bun", "x", "playwriter@latest"],
+"enabled": true
+},
+"shadcnVue": {
+"type": "local",
+"enabled": true,
+"command": ["bun", "x", "shadcn-vue@latest", "mcp"]
+}
+},
+"plugin": ["oh-my-opencode", "opencode-anthropic-auth"]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "pokemon-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:mobile": "npm run start --workspace=@pokemon/mobile",
+    "dev:api": "npm run start:dev --workspace=@pokemon/api",
+    "dev:web": "npm run dev --workspace=@pokemon/web",
+    "build:api": "npm run build --workspace=@pokemon/api",
+    "build:web": "npm run build --workspace=@pokemon/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "~5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,384 @@
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma';
+import { CreateSessionDto, UpdateSessionDto, UploadImageDto } from './dto';
+import {
+  SessionStatus,
+  GradeScale,
+  CardSide,
+  GRADE_LABELS,
+} from './enums';
+import { IGradeCriteria, IMLAnalysisOutput } from './interfaces';
+import { Session, SessionImage, GradeResult } from '@prisma/client';
+
+interface SessionFilters {
+  status?: SessionStatus;
+  cardType?: string;
+}
+
+type SessionWithRelations = Session & {
+  images: SessionImage[];
+  gradeResults: GradeResult[];
+};
+
+@Injectable()
+export class SessionsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  // ==================== CRUD ====================
+
+  async create(createSessionDto: CreateSessionDto): Promise<Session> {
+    const { userId, ...data } = createSessionDto;
+
+    // Vérifier que l'utilisateur existe
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    return this.prisma.session.create({
+      data: {
+        ...data,
+        userId,
+        status: SessionStatus.PENDING,
+      },
+    });
+  }
+
+  async findAll(
+    userId: number,
+    filters?: SessionFilters,
+  ): Promise<SessionWithRelations[]> {
+    const where: Record<string, unknown> = { userId };
+
+    if (filters?.status) {
+      where.status = filters.status;
+    }
+
+    if (filters?.cardType) {
+      where.cardType = filters.cardType;
+    }
+
+    return this.prisma.session.findMany({
+      where,
+      include: {
+        images: true,
+        gradeResults: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async findOne(id: string, userId: number): Promise<SessionWithRelations> {
+    const session = await this.prisma.session.findUnique({
+      where: { id },
+      include: {
+        images: true,
+        gradeResults: true,
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Session with ID ${id} not found`);
+    }
+
+    if (session.userId !== userId) {
+      throw new ForbiddenException('You do not own this session');
+    }
+
+    return session;
+  }
+
+  async update(
+    id: string,
+    updateSessionDto: UpdateSessionDto,
+    userId: number,
+  ): Promise<Session> {
+    await this.validateUserOwnership(id, userId);
+
+    return this.prisma.session.update({
+      where: { id },
+      data: updateSessionDto,
+    });
+  }
+
+  async remove(id: string, userId: number): Promise<Session> {
+    await this.validateUserOwnership(id, userId);
+
+    // Soft delete: on archive la session
+    return this.prisma.session.update({
+      where: { id },
+      data: { status: SessionStatus.ARCHIVED },
+    });
+  }
+
+  // ==================== IMAGES ====================
+
+  async uploadImage(
+    sessionId: string,
+    file: Express.Multer.File,
+    uploadImageDto: UploadImageDto,
+    userId: number,
+  ): Promise<SessionImage> {
+    await this.validateUserOwnership(sessionId, userId);
+    await this.validateSessionStatus(sessionId, [
+      SessionStatus.PENDING,
+      SessionStatus.UPLOADING,
+    ]);
+
+    const { side } = uploadImageDto;
+
+    // Vérifier qu'il n'y a pas déjà une image pour ce côté
+    const existingImage = await this.prisma.sessionImage.findFirst({
+      where: {
+        sessionId,
+        side,
+      },
+    });
+
+    if (existingImage) {
+      throw new BadRequestException(
+        `An image for ${side} side already exists. Delete it first.`,
+      );
+    }
+
+    // Créer l'image
+    const image = await this.prisma.sessionImage.create({
+      data: {
+        sessionId,
+        side,
+        url: `/uploads/${file.filename}`,
+        filename: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+      },
+    });
+
+    // Mettre à jour le status de la session
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { status: SessionStatus.UPLOADING },
+    });
+
+    return image;
+  }
+
+  async deleteImage(
+    sessionId: string,
+    imageId: string,
+    userId: number,
+  ): Promise<void> {
+    await this.validateUserOwnership(sessionId, userId);
+
+    const image = await this.prisma.sessionImage.findFirst({
+      where: {
+        id: imageId,
+        sessionId,
+      },
+    });
+
+    if (!image) {
+      throw new NotFoundException(`Image with ID ${imageId} not found`);
+    }
+
+    await this.prisma.sessionImage.delete({
+      where: { id: imageId },
+    });
+  }
+
+  async getSessionImages(
+    sessionId: string,
+    userId: number,
+  ): Promise<SessionImage[]> {
+    await this.validateUserOwnership(sessionId, userId);
+
+    return this.prisma.sessionImage.findMany({
+      where: { sessionId },
+      orderBy: { uploadedAt: 'asc' },
+    });
+  }
+
+  // ==================== ANALYSE ====================
+
+  async canAnalyze(sessionId: string): Promise<boolean> {
+    const images = await this.prisma.sessionImage.findMany({
+      where: { sessionId },
+    });
+
+    const hasFront = images.some((img) => img.side === CardSide.FRONT);
+    const hasBack = images.some((img) => img.side === CardSide.BACK);
+
+    return hasFront && hasBack;
+  }
+
+  async analyzeSession(
+    sessionId: string,
+    userId: number,
+    scale: GradeScale,
+  ): Promise<GradeResult> {
+    await this.validateUserOwnership(sessionId, userId);
+    await this.validateSessionStatus(sessionId, [
+      SessionStatus.PENDING,
+      SessionStatus.UPLOADING,
+    ]);
+
+    // Vérifier présence des 2 images
+    const canAnalyze = await this.canAnalyze(sessionId);
+    if (!canAnalyze) {
+      throw new BadRequestException(
+        'Session must have both FRONT and BACK images before analysis',
+      );
+    }
+
+    // Mettre à jour le status
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { status: SessionStatus.ANALYZING },
+    });
+
+    try {
+      // TODO: Appeler le vrai ML Service
+      // Pour l'instant, on utilise un mock
+      const mlResult = await this.mockMLAnalysis();
+
+      // Calculer le grade final
+      const criteria: IGradeCriteria = {
+        centering: mlResult.centering,
+        corners: mlResult.corners,
+        edges: mlResult.edges,
+        surface: mlResult.surface,
+        printQuality: mlResult.printQuality,
+      };
+
+      const finalGrade = this.calculateFinalGrade(criteria);
+      const gradeLabel = this.getGradeLabel(finalGrade);
+
+      // Enregistrer le résultat
+      const gradeResult = await this.prisma.gradeResult.create({
+        data: {
+          sessionId,
+          scale,
+          centering: mlResult.centering,
+          corners: mlResult.corners,
+          edges: mlResult.edges,
+          surface: mlResult.surface,
+          printQuality: mlResult.printQuality,
+          finalGrade,
+          gradeLabel,
+          confidence: mlResult.confidence,
+          modelVersion: mlResult.modelVersion,
+          analysisData: mlResult.rawData as object,
+        },
+      });
+
+      // Mettre à jour la session
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          status: SessionStatus.COMPLETED,
+          completedAt: new Date(),
+        },
+      });
+
+      return gradeResult;
+    } catch (error) {
+      // En cas d'erreur, marquer comme FAILED
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: { status: SessionStatus.FAILED },
+      });
+      throw error;
+    }
+  }
+
+  async getResults(sessionId: string, userId: number): Promise<GradeResult[]> {
+    await this.validateUserOwnership(sessionId, userId);
+
+    return this.prisma.gradeResult.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ==================== GRADING LOGIC ====================
+
+  calculateFinalGrade(criteria: IGradeCriteria): number {
+    const { centering, corners, edges, surface, printQuality } = criteria;
+    return Math.min(centering, corners, edges, surface, printQuality);
+  }
+
+  getGradeLabel(finalGrade: number): string {
+    const rounded = Math.floor(finalGrade);
+    return GRADE_LABELS[rounded] || 'Unknown';
+  }
+
+  // ==================== VALIDATION ====================
+
+  private async validateUserOwnership(
+    sessionId: string,
+    userId: number,
+  ): Promise<void> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      select: { userId: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Session with ID ${sessionId} not found`);
+    }
+
+    if (session.userId !== userId) {
+      throw new ForbiddenException('You do not own this session');
+    }
+  }
+
+  private async validateSessionStatus(
+    sessionId: string,
+    allowedStatuses: SessionStatus[],
+  ): Promise<void> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      select: { status: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Session with ID ${sessionId} not found`);
+    }
+
+    if (!allowedStatuses.includes(session.status as SessionStatus)) {
+      throw new BadRequestException(
+        `Session status must be one of: ${allowedStatuses.join(', ')}. Current: ${session.status}`,
+      );
+    }
+  }
+
+  // ==================== MOCK ML (temporaire) ====================
+
+  private async mockMLAnalysis(): Promise<IMLAnalysisOutput> {
+    // Simuler un délai d'analyse
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Retourner des scores aléatoires réalistes
+    const randomScore = () => Math.round((7 + Math.random() * 3) * 10) / 10;
+
+    return {
+      centering: randomScore(),
+      corners: randomScore(),
+      edges: randomScore(),
+      surface: randomScore(),
+      printQuality: randomScore(),
+      confidence: 0.85 + Math.random() * 0.1,
+      modelVersion: 'mock-v1.0.0',
+      rawData: { mock: true },
+    };
+  }
+}

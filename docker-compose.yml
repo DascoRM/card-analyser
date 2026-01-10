@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pokemon-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: pokemon
+      POSTGRES_PASSWORD: pokemon_password
+      POSTGRES_DB: pokemon_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pokemon -d pokemon_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
