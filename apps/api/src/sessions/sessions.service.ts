@@ -1,10 +1,12 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma';
+import { MlService } from '../ml';
 import { CreateSessionDto, UpdateSessionDto, UploadImageDto } from './dto';
 import {
   SessionStatus,
@@ -12,7 +14,7 @@ import {
   CardSide,
   GRADE_LABELS,
 } from './enums';
-import { IGradeCriteria, IMLAnalysisOutput } from './interfaces';
+import { IGradeCriteria } from './interfaces';
 import { Session, SessionImage, GradeResult } from '@prisma/client';
 
 interface SessionFilters {
@@ -27,7 +29,12 @@ type SessionWithRelations = Session & {
 
 @Injectable()
 export class SessionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(SessionsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mlService: MlService,
+  ) {}
 
   // ==================== CRUD ====================
 
@@ -156,7 +163,7 @@ export class SessionsService {
       data: {
         sessionId,
         side,
-        url: `/uploads/${file.filename}`,
+        url: `/uploads/sessions/${file.filename}`,
         filename: file.originalname,
         mimeType: file.mimetype,
         size: file.size,
@@ -239,6 +246,14 @@ export class SessionsService {
       );
     }
 
+    // Récupérer les images
+    const images = await this.prisma.sessionImage.findMany({
+      where: { sessionId },
+    });
+
+    const frontImage = images.find((img) => img.side === CardSide.FRONT);
+    const backImage = images.find((img) => img.side === CardSide.BACK);
+
     // Mettre à jour le status
     await this.prisma.session.update({
       where: { id: sessionId },
@@ -246,9 +261,18 @@ export class SessionsService {
     });
 
     try {
-      // TODO: Appeler le vrai ML Service
-      // Pour l'instant, on utilise un mock
-      const mlResult = await this.mockMLAnalysis();
+      this.logger.log(`Starting ML analysis for session ${sessionId}`);
+
+      // Appeler le ML Service
+      const mlResult = await this.mlService.analyzeCard({
+        frontImagePath: frontImage.url,
+        backImagePath: backImage.url,
+        sessionId,
+      });
+
+      this.logger.log(
+        `ML analysis completed for session ${sessionId} - confidence: ${mlResult.confidence}`,
+      );
 
       // Calculer le grade final
       const criteria: IGradeCriteria = {
@@ -291,6 +315,10 @@ export class SessionsService {
 
       return gradeResult;
     } catch (error) {
+      this.logger.error(
+        `ML analysis failed for session ${sessionId}: ${error.message}`,
+      );
+
       // En cas d'erreur, marquer comme FAILED
       await this.prisma.session.update({
         where: { id: sessionId },
@@ -359,26 +387,5 @@ export class SessionsService {
         `Session status must be one of: ${allowedStatuses.join(', ')}. Current: ${session.status}`,
       );
     }
-  }
-
-  // ==================== MOCK ML (temporaire) ====================
-
-  private async mockMLAnalysis(): Promise<IMLAnalysisOutput> {
-    // Simuler un délai d'analyse
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Retourner des scores aléatoires réalistes
-    const randomScore = () => Math.round((7 + Math.random() * 3) * 10) / 10;
-
-    return {
-      centering: randomScore(),
-      corners: randomScore(),
-      edges: randomScore(),
-      surface: randomScore(),
-      printQuality: randomScore(),
-      confidence: 0.85 + Math.random() * 0.1,
-      modelVersion: 'mock-v1.0.0',
-      rawData: { mock: true },
-    };
   }
 }
