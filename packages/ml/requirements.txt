@@ -1,6 +1,6 @@
 # ML Dependencies
 tensorflow>=2.15.0
-tensorflowjs>=4.0.0
+# tensorflowjs>=4.0.0  # Removed - conflicts with tensorflow, only needed for model conversion
 
 # API
 fastapi>=0.109.0
