@@ -5,10 +5,12 @@ import { extname } from 'path';
 import { SessionsController } from './sessions.controller';
 import { SessionsService } from './sessions.service';
 import { PrismaModule } from '../prisma';
+import { MlModule } from '../ml';
 
 @Module({
   imports: [
     PrismaModule,
+    MlModule,
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads/sessions',
