@@ -79,3 +79,4 @@ temp/
 
 # Turbo
 .turbo/
+__pycache__/
