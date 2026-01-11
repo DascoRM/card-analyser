@@ -26,13 +26,17 @@ Format commits : `type(scope): description`
 ## Documentation du projet
 Tous dois être documenter de maniere simple mais comprehensible
 On différencie trois documentation
-1. La documentation par projet type README.md (pour run les projet, concept type migration, build et autres)
-2. La documentation technique. Celle qui permet de comprendre l'architeture et finesse du projet
-3. La documentation fonctionnel, orienté utour du produit / métier
+1. La documentation par projet type README.md (pour run les projet, concept type migration, build et autres) (dans le projet)
+2. La documentation technique. Celle qui permet de comprendre l'architeture et finesse du projet (dans Notion)
+3. La documentation fonctionnel, orienté utour du produit / métier (dans Notion)
 
 - Chaque projet doit avoir ça dsocumentation a jour 
-- La documentation technique doit être régulierement mis a jour et ajouter dans .claude/docs/technical/ Format : [projet]-documentation-technical. La documentation sera en Français
-- La documentation fonctionel doit être mis a jour et ajouter dans .claude/docs/functionnal/ Format : [fonctionnalité]-documentation-functionnal. La documentation sera en Français
+- La documentation technique doit être régulierement mis a jour et ajouter dans Notion. (utilise le serveur MCP)
+  - URL notion https://www.notion.so/Projet-pokemon-cards-2e59e147f94f807e88c0cf00eb229fee?source=copy_link.claude/docs/functionnal/ 
+  - Page dédier : namage de la page [projet]-documentation-technical. La documentation sera en Français
+- La documentation fonctionel doit être mis a jour et ajouter dans  Notion. (utilise le serveur MCP)
+  - URL notion https://www.notion.so/Projet-pokemon-cards-2e59e147f94f807e88c0cf00eb229fee?source=copy_link.claude/docs/functionnal/ 
+  - Page dédier : namage de la page [fonctionnalité]-documentation-functionnal. La documentation sera en Français
 
 ## Sub-agents disponibles
 

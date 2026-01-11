@@ -1,36 +1,109 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Card Grading - Interface Web
 
-## Getting Started
+> Interface web Next.js pour le systeme de certification automatique de cartes a collectionner.
 
-First, run the development server:
+## Fonctionnalites
+
+- **Page Desktop**: Affiche un QR code pour demarrer une session
+- **Page Mobile**: Upload des photos (recto/verso) via camera
+- **Resultats**: Affichage des grades avec details par critere
+
+## Workflow
+
+```
+[Desktop] Ouvrir l'app → QR code genere
+     ↓
+[Mobile] Scanner QR → Upload photos → Analyser
+     ↓
+[Mobile] Affichage des resultats
+```
+
+## Demarrage
+
+### Prerequis
+
+- Node.js >= 18
+- API NestJS en cours d'execution sur `http://localhost:3000`
+
+### Installation
+
+```bash
+# Depuis apps/web
+npm install
+```
+
+### Developpement
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+L'application sera disponible sur **http://localhost:3001**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm run start
+```
 
-## Learn More
+## Configuration
 
-To learn more about Next.js, take a look at the following resources:
+### Variables d'environnement (.env.local)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable | Description | Defaut |
+|----------|-------------|--------|
+| `NEXT_PUBLIC_API_URL` | URL de l'API NestJS | `http://localhost:3000` |
+| `NEXT_PUBLIC_APP_URL` | URL de l'app (pour QR code) | `http://localhost:3001` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Structure
 
-## Deploy on Vercel
+```
+src/
+├── app/
+│   ├── page.tsx                    # Page desktop (QR code)
+│   └── mobile/
+│       └── [sessionId]/
+│           ├── page.tsx            # Upload photos
+│           └── results/
+│               └── page.tsx        # Resultats
+├── components/
+│   ├── desktop/                    # Composants desktop
+│   │   ├── QRCodeDisplay.tsx
+│   │   └── SessionInfo.tsx
+│   ├── mobile/                     # Composants mobile
+│   │   ├── ImageUploader.tsx
+│   │   ├── AnalyzeButton.tsx
+│   │   └── GradeResultCard.tsx
+│   └── shared/                     # Composants partages
+│       ├── LoadingSpinner.tsx
+│       └── ErrorMessage.tsx
+├── hooks/
+│   ├── useCreateSession.ts
+│   ├── useSession.ts
+│   └── useImageUpload.ts
+└── lib/
+    ├── api.ts                      # Fonctions API
+    └── types.ts                    # Types TypeScript
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Routes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Route | Description |
+|-------|-------------|
+| `/` | Page desktop avec QR code |
+| `/mobile/[sessionId]` | Page mobile upload |
+| `/mobile/[sessionId]/results` | Page resultats |
+
+## Stack
+
+- Next.js 16.1 (App Router)
+- React 19
+- TypeScript 5
+- Tailwind CSS 4
+- qrcode.react
+
+## Liens
+
+- [API NestJS](../api/README.md)
+- [Documentation Architecture](../../docs/architecture/overview.md)

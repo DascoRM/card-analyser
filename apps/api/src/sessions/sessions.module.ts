@@ -25,7 +25,9 @@ import { MlModule } from '../ml';
         fileSize: 10 * 1024 * 1024, // 10MB max
       },
       fileFilter: (req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png)$/)) {
+        // Accept common image formats including mobile formats (heic/heif for iPhone)
+        if (!file.mimetype.match(/^image\/(jpeg|jpg|png|gif|webp|heic|heif)$/i)) {
+          console.error(`Rejected file with mimetype: ${file.mimetype}`);
           return cb(new Error('Only image files are allowed!'), false);
         }
         cb(null, true);
