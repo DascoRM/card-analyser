@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma';
 import { SessionsModule } from './sessions';
 import { MlModule } from './ml';
+import { FeedbackModule } from './feedback';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { MlModule } from './ml';
     PrismaModule,
     SessionsModule,
     MlModule,
+    FeedbackModule,
   ],
   controllers: [AppController],
   providers: [AppService],

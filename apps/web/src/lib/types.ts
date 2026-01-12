@@ -65,3 +65,26 @@ export interface CreateSessionDto {
 export interface AnalyzeSessionDto {
   scale: GradeScale;
 }
+
+// Feedback types
+export interface GradeFeedback {
+  id: string;
+  resultId: string;
+  userId: number;
+  centering: number;
+  corners: number;
+  edges: number;
+  surface: number;
+  printQuality: number;
+  comment?: string;
+  createdAt: string;
+}
+
+export interface SubmitFeedbackDto {
+  centering: number;
+  corners: number;
+  edges: number;
+  surface: number;
+  printQuality: number;
+  comment?: string;
+}
