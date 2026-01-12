@@ -5,6 +5,8 @@ import {
   CreateSessionDto,
   AnalyzeSessionDto,
   CardSide,
+  GradeFeedback,
+  SubmitFeedbackDto,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -137,5 +139,23 @@ export async function getSessionResults(
 ): Promise<GradeResult[]> {
   return fetchApi<GradeResult[]>(
     `/sessions/${sessionId}/results?userId=${userId}`
+  );
+}
+
+// Feedback API
+
+export async function submitFeedback(
+  sessionId: string,
+  resultId: string,
+  userId: number,
+  data: SubmitFeedbackDto
+): Promise<GradeFeedback> {
+  return fetchApi<GradeFeedback>(
+    `/sessions/${sessionId}/results/${resultId}/feedback?userId=${userId}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }
   );
 }

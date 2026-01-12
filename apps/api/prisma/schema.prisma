@@ -33,12 +33,13 @@ enum GradeScale {
 // ===== MODELS =====
 
 model User {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
+  id        Int             @id @default(autoincrement())
+  email     String          @unique
   name      String?
   sessions  Session[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  feedbacks GradeFeedback[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 }
 
 model Session {
@@ -89,9 +90,9 @@ model SessionImage {
 }
 
 model GradeResult {
-  id           String     @id @default(uuid())
+  id           String          @id @default(uuid())
   sessionId    String
-  session      Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session      Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   // Type de grading
   scale        GradeScale
@@ -112,8 +113,35 @@ model GradeResult {
   modelVersion String?
   analysisData Json?
 
+  // Relations
+  feedbacks    GradeFeedback[]
+
   // Timestamps
-  createdAt    DateTime   @default(now())
+  createdAt    DateTime        @default(now())
 
   @@index([sessionId])
+}
+
+model GradeFeedback {
+  id           String      @id @default(uuid())
+  resultId     String
+  result       GradeResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Corrections proposées par l'utilisateur (1-10)
+  centering    Float
+  corners      Float
+  edges        Float
+  surface      Float
+  printQuality Float
+
+  // Commentaire optionnel
+  comment      String?
+
+  // Timestamps
+  createdAt    DateTime    @default(now())
+
+  @@index([resultId])
+  @@index([userId])
 }
