@@ -5,3 +5,6 @@ export { MethodBadge } from './MethodBadge';
 export { GradeCriteriaBar } from './GradeCriteriaBar';
 export { GradeCriteriaSlider } from './GradeCriteriaSlider';
 export { FeedbackModal } from './FeedbackModal';
+export { CardIdentificationBanner } from './CardIdentificationBanner';
+export { CardInfoEditor } from './CardInfoEditor';
+export { CardAutoCompleteInput } from './CardAutoCompleteInput';

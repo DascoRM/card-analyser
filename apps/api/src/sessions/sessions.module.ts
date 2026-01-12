@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -6,11 +6,13 @@ import { SessionsController } from './sessions.controller';
 import { SessionsService } from './sessions.service';
 import { PrismaModule } from '../prisma';
 import { MlModule } from '../ml';
+import { CardsModule } from '../cards';
 
 @Module({
   imports: [
     PrismaModule,
     MlModule,
+    forwardRef(() => CardsModule),
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads/sessions',

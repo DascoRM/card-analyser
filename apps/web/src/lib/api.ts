@@ -7,6 +7,9 @@ import {
   CardSide,
   GradeFeedback,
   SubmitFeedbackDto,
+  CardIdentification,
+  UpdateCardInfoDto,
+  CardSearchResult,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -157,5 +160,43 @@ export async function submitFeedback(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }
+  );
+}
+
+// Card Identification API
+
+export async function identifyCard(
+  sessionId: string,
+  userId: number
+): Promise<CardIdentification> {
+  return fetchApi<CardIdentification>(
+    `/sessions/${sessionId}/identify?userId=${userId}`,
+    { method: 'POST' }
+  );
+}
+
+export async function updateSessionCardInfo(
+  sessionId: string,
+  userId: number,
+  data: UpdateCardInfoDto
+): Promise<Session> {
+  return fetchApi<Session>(
+    `/sessions/${sessionId}/card-info?userId=${userId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+// Card Search API
+
+export async function searchCards(
+  query: string,
+  limit: number = 10
+): Promise<CardSearchResult[]> {
+  return fetchApi<CardSearchResult[]>(
+    `/cards/search?query=${encodeURIComponent(query)}&limit=${limit}`
   );
 }

@@ -207,4 +207,45 @@ export class SessionsController {
   ) {
     return this.sessionsService.getResults(id, userId);
   }
+
+  // ==================== CARD IDENTIFICATION ====================
+
+  @Post(':id/identify')
+  @ApiOperation({ summary: 'Identifier la carte à partir des images uploadées' })
+  @ApiQuery({ name: 'userId', required: true, type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Carte identifiée',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Image manquante',
+  })
+  identifyCard(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.sessionsService.identifyCard(id, userId);
+  }
+
+  @Patch(':id/card-info')
+  @ApiOperation({ summary: 'Mettre à jour les informations de la carte manuellement' })
+  @ApiQuery({ name: 'userId', required: true, type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Informations mises à jour',
+  })
+  updateCardInfo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body()
+    cardInfo: {
+      cardName?: string;
+      cardSet?: string;
+      cardYear?: number;
+      cardType?: string;
+    },
+    @Query('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.sessionsService.updateCardInfo(id, userId, cardInfo);
+  }
 }

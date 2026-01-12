@@ -4,9 +4,12 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma';
 import { MlService } from '../ml';
+import { CardsService, CardIdentificationDto } from '../cards';
 import { CreateSessionDto, UpdateSessionDto, UploadImageDto } from './dto';
 import {
   SessionStatus,
@@ -34,6 +37,8 @@ export class SessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mlService: MlService,
+    @Inject(forwardRef(() => CardsService))
+    private readonly cardsService: CardsService,
   ) {}
 
   // ==================== CRUD ====================
@@ -328,6 +333,158 @@ export class SessionsService {
       where: { sessionId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // ==================== CARD IDENTIFICATION ====================
+
+  /**
+   * Identify card from uploaded images using OCR + API matching
+   */
+  async identifyCard(
+    sessionId: string,
+    userId: number,
+  ): Promise<CardIdentificationDto> {
+    await this.validateUserOwnership(sessionId, userId);
+
+    // Get session images
+    const images = await this.prisma.sessionImage.findMany({
+      where: { sessionId },
+    });
+
+    const frontImage = images.find((img) => img.side === CardSide.FRONT);
+
+    if (!frontImage) {
+      throw new BadRequestException('No front image found for identification');
+    }
+
+    this.logger.log(`Starting card identification for session ${sessionId}`);
+
+    try {
+      // For now, we'll use a simple approach:
+      // Try to extract text from the image and match it with the card database
+      // In a full implementation, this would call the ML service for OCR
+
+      // Simulate OCR extraction (in reality, this would call mlService.extractCardInfo)
+      const extractedText = await this.extractTextFromImage(frontImage.url);
+
+      this.logger.log(
+        `Extracted text for session ${sessionId}: ${JSON.stringify(extractedText)}`,
+      );
+
+      // Try to match the card using CardsService
+      const matchedCard = await this.cardsService.matchCard({
+        extractedText,
+      });
+
+      if (matchedCard) {
+        // Update session with matched card info
+        await this.prisma.session.update({
+          where: { id: sessionId },
+          data: {
+            cardName: matchedCard.name,
+            cardSet: matchedCard.set,
+            cardYear: this.parseYear(matchedCard.releaseDate),
+            cardNumber: matchedCard.number,
+            cardRarity: matchedCard.rarity,
+            cardArtist: matchedCard.artist,
+            cardImageUrl: matchedCard.imageUrl,
+            identificationConfidence: 0.8, // High confidence when matched
+            identificationMethod: 'ocr',
+            pokemonTcgApiId: matchedCard.id,
+          },
+        });
+
+        return {
+          cardName: matchedCard.name,
+          cardSet: matchedCard.set,
+          cardYear: this.parseYear(matchedCard.releaseDate),
+          cardNumber: matchedCard.number,
+          cardType: matchedCard.supertype,
+          cardRarity: matchedCard.rarity,
+          cardArtist: matchedCard.artist,
+          cardImageUrl: matchedCard.imageUrl,
+          confidence: 0.8,
+          method: 'ocr',
+          extractedText,
+          apiId: matchedCard.id,
+        };
+      }
+
+      // Partial identification (couldn't match with database)
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          cardName: extractedText[0] || 'Unknown',
+          identificationConfidence: 0.3,
+          identificationMethod: 'ocr-partial',
+        },
+      });
+
+      return {
+        cardName: extractedText[0] || 'Unknown',
+        confidence: 0.3,
+        method: 'ocr-partial',
+        extractedText,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Card identification failed for session ${sessionId}: ${error.message}`,
+      );
+
+      // Return low confidence result
+      return {
+        cardName: 'Unknown',
+        confidence: 0,
+        method: 'ocr',
+        extractedText: [],
+      };
+    }
+  }
+
+  /**
+   * Update card info manually (user correction)
+   */
+  async updateCardInfo(
+    sessionId: string,
+    userId: number,
+    cardInfo: {
+      cardName?: string;
+      cardSet?: string;
+      cardYear?: number;
+      cardType?: string;
+    },
+  ): Promise<Session> {
+    await this.validateUserOwnership(sessionId, userId);
+
+    return this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        ...cardInfo,
+        identificationConfidence: 1, // Manual = high confidence
+        identificationMethod: 'manual',
+      },
+    });
+  }
+
+  /**
+   * Extract text from image (simplified version)
+   * In a full implementation, this would call the ML service OCR endpoint
+   */
+  private async extractTextFromImage(imagePath: string): Promise<string[]> {
+    // For now, return empty array - in production, this would call:
+    // return this.mlService.extractCardInfo(imagePath);
+
+    // Simulate some extracted text based on the filename for testing
+    this.logger.log(`Would extract text from: ${imagePath}`);
+
+    // Return empty for now - the actual OCR implementation would go in ML service
+    return [];
+  }
+
+  private parseYear(dateString?: string): number | undefined {
+    if (!dateString) return undefined;
+    const year = parseInt(dateString.substring(0, 4), 10);
+    return isNaN(year) ? undefined : year;
   }
 
   // ==================== GRADING LOGIC ====================

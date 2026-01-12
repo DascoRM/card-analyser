@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma';
 import { SessionsModule } from './sessions';
 import { MlModule } from './ml';
 import { FeedbackModule } from './feedback';
+import { CardsModule } from './cards';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { FeedbackModule } from './feedback';
     SessionsModule,
     MlModule,
     FeedbackModule,
+    CardsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
