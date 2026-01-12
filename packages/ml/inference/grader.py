@@ -1,44 +1,48 @@
 """
 Card Grader - Main inference class for card grading.
+
+Uses rule-based grading with OpenCV for deterministic,
+explainable results based on official PCA/PSA standards.
 """
 
 import os
 from pathlib import Path
 from typing import Optional
 
+import cv2
 import numpy as np
 
 from preprocessing.image_processor import ImageProcessor
+from inference.rule_based_grader import RuleBasedGrader
 
 
 class CardGrader:
     """
     Card grading inference class.
 
-    For MVP, this uses a mock model that returns realistic scores.
-    Will be replaced with actual TensorFlow model when trained.
+    Uses rule-based grading with computer vision for:
+    - Deterministic results (same image = same grade)
+    - Explainable scoring based on official standards
+    - No training data required
     """
 
     def __init__(self, uploads_base_path: str = "./uploads"):
         self.uploads_base_path = Path(uploads_base_path)
         self.image_processor = ImageProcessor()
+        self.rule_based_grader = RuleBasedGrader()
         self.model = None
         self.is_loaded = False
-        self.model_version = "mvp-v1.0.0-mock"
+        self.model_version = "rule-based-v1.0.0"
 
     async def load_model(self) -> None:
         """
-        Load the TensorFlow model.
+        Initialize the grading system.
 
-        For MVP, we just mark as loaded (using mock inference).
-        TODO: Load actual TensorFlow model when available.
+        For the rule-based system, this just marks as ready.
+        Future ML enhancements will load correction models here.
         """
-        # TODO: Implement actual model loading
-        # self.model = tf.keras.models.load_model(model_path)
-
-        # For MVP, we use mock inference
         self.is_loaded = True
-        print(f"Model '{self.model_version}' ready (mock mode)")
+        print(f"Grader '{self.model_version}' ready (rule-based mode)")
 
     async def analyze(
         self,
@@ -48,6 +52,9 @@ class CardGrader:
     ) -> dict:
         """
         Analyze a card and return grading scores.
+
+        Uses rule-based grading with computer vision for
+        deterministic, explainable results.
 
         Args:
             front_image_path: Path to front image (relative, e.g., '/uploads/sessions/xxx.jpg')
@@ -67,72 +74,33 @@ class CardGrader:
         if not back_full.exists():
             raise FileNotFoundError(f"Back image not found: {back_image_path}")
 
-        # Preprocess images
-        front_tensor = await self.image_processor.process(front_full)
-        back_tensor = await self.image_processor.process(back_full)
+        # Load images with OpenCV
+        front_image = cv2.imread(str(front_full))
+        back_image = cv2.imread(str(back_full))
 
-        # Get image quality metrics
-        front_quality = self.image_processor.assess_quality(front_full)
-        back_quality = self.image_processor.assess_quality(back_full)
+        if front_image is None:
+            raise ValueError(f"Could not load front image: {front_image_path}")
+        if back_image is None:
+            raise ValueError(f"Could not load back image: {back_image_path}")
 
-        # Run inference (mock for MVP)
-        scores = await self._infer(front_tensor, back_tensor)
-
-        # Adjust confidence based on image quality
-        base_confidence = scores["confidence"]
-        quality_factor = (front_quality["score"] + back_quality["score"]) / 2
-        adjusted_confidence = base_confidence * quality_factor
+        # Run rule-based grading
+        result = self.rule_based_grader.grade_card(front_image, back_image)
 
         return {
-            "centering": scores["centering"],
-            "corners": scores["corners"],
-            "edges": scores["edges"],
-            "surface": scores["surface"],
-            "printQuality": scores["printQuality"],
-            "confidence": round(adjusted_confidence, 3),
+            "centering": result["centering"],
+            "corners": result["corners"],
+            "edges": result["edges"],
+            "surface": result["surface"],
+            "printQuality": result["printQuality"],
+            "finalGrade": result["final_grade"],
+            "gradeLabel": result["grade_label"],
+            "confidence": result["confidence"],
             "modelVersion": self.model_version,
+            "method": result["method"],
             "rawData": {
                 "sessionId": session_id,
-                "imageQuality": {
-                    "front": front_quality,
-                    "back": back_quality,
-                },
-                "mock": True,  # Remove when using real model
+                "details": result["details"],
             },
-        }
-
-    async def _infer(
-        self,
-        front_tensor: np.ndarray,
-        back_tensor: np.ndarray,
-    ) -> dict:
-        """
-        Run model inference.
-
-        For MVP, returns mock scores based on image analysis.
-        TODO: Replace with actual TensorFlow inference.
-        """
-        # TODO: Implement actual inference
-        # predictions = self.model.predict([front_tensor, back_tensor])
-
-        # Mock inference with realistic distribution
-        # Scores tend to cluster around 7-9 for most cards
-        np.random.seed(hash(str(front_tensor.sum()) + str(back_tensor.sum())) % 2**32)
-
-        def generate_score() -> float:
-            """Generate a realistic score (1-10) with natural distribution."""
-            # Most cards score 7-9, fewer score 10 or below 6
-            base = np.random.normal(8.0, 1.0)
-            score = np.clip(base, 1.0, 10.0)
-            return round(score, 1)
-
-        return {
-            "centering": generate_score(),
-            "corners": generate_score(),
-            "edges": generate_score(),
-            "surface": generate_score(),
-            "printQuality": generate_score(),
-            "confidence": round(0.75 + np.random.random() * 0.2, 3),  # 0.75-0.95
         }
 
     def _resolve_path(self, relative_path: str) -> Path:

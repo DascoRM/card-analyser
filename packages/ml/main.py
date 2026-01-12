@@ -33,17 +33,17 @@ grader: Optional[CardGrader] = None
 async def lifespan(app: FastAPI):
     """Initialize and cleanup resources."""
     global grader
-    print("Loading ML model...")
+    print("Initializing rule-based grading system...")
     grader = CardGrader(uploads_base_path=ML_UPLOADS_PATH)
     await grader.load_model()
-    print("ML model loaded successfully")
+    print("Rule-based grading system ready")
     yield
     print("Shutting down ML service...")
 
 
 app = FastAPI(
     title="Card Grading ML Service",
-    description="API for analyzing collectible cards and providing PCA/PSA grades",
+    description="Rule-based card grading API using OpenCV and official PCA/PSA/BGS standards",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -81,8 +81,11 @@ class AnalyzeResponse(BaseModel):
     edges: float
     surface: float
     printQuality: float
+    finalGrade: float
+    gradeLabel: str
     confidence: float
     modelVersion: str
+    method: str
     rawData: Optional[dict] = None
 
 
@@ -98,8 +101,8 @@ class ModelInfoResponse(BaseModel):
     """Model information response."""
     version: str
     lastUpdated: str
-    inputShape: list
-    outputClasses: int
+    method: str
+    description: str
 
 
 # Endpoints
@@ -122,9 +125,9 @@ async def model_info(api_key: str = Depends(verify_api_key)):
 
     return ModelInfoResponse(
         version=grader.model_version,
-        lastUpdated="2026-01-10",
-        inputShape=[224, 224, 3],
-        outputClasses=10,
+        lastUpdated="2026-01-12",
+        method="rule_based",
+        description="Rule-based grading using OpenCV and official PCA/PSA standards",
     )
 
 
@@ -158,8 +161,11 @@ async def analyze_card(
             edges=result["edges"],
             surface=result["surface"],
             printQuality=result["printQuality"],
+            finalGrade=result["finalGrade"],
+            gradeLabel=result["gradeLabel"],
             confidence=result["confidence"],
             modelVersion=result["modelVersion"],
+            method=result["method"],
             rawData=result.get("rawData"),
         )
 

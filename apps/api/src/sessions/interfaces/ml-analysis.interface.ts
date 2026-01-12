@@ -10,7 +10,10 @@ export interface IMLAnalysisOutput {
   edges: number;
   surface: number;
   printQuality: number;
+  finalGrade: number;
+  gradeLabel: string;
   confidence: number;
   modelVersion: string;
+  method: string;
   rawData?: unknown;
 }

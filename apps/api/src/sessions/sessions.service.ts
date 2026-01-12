@@ -271,22 +271,12 @@ export class SessionsService {
       });
 
       this.logger.log(
-        `ML analysis completed for session ${sessionId} - confidence: ${mlResult.confidence}`,
+        `ML analysis completed for session ${sessionId} - ` +
+          `grade: ${mlResult.finalGrade} (${mlResult.gradeLabel}), ` +
+          `confidence: ${mlResult.confidence}, method: ${mlResult.method}`,
       );
 
-      // Calculer le grade final
-      const criteria: IGradeCriteria = {
-        centering: mlResult.centering,
-        corners: mlResult.corners,
-        edges: mlResult.edges,
-        surface: mlResult.surface,
-        printQuality: mlResult.printQuality,
-      };
-
-      const finalGrade = this.calculateFinalGrade(criteria);
-      const gradeLabel = this.getGradeLabel(finalGrade);
-
-      // Enregistrer le résultat
+      // Enregistrer le résultat (using ML service values directly)
       const gradeResult = await this.prisma.gradeResult.create({
         data: {
           sessionId,
@@ -296,11 +286,14 @@ export class SessionsService {
           edges: mlResult.edges,
           surface: mlResult.surface,
           printQuality: mlResult.printQuality,
-          finalGrade,
-          gradeLabel,
+          finalGrade: mlResult.finalGrade,
+          gradeLabel: mlResult.gradeLabel,
           confidence: mlResult.confidence,
           modelVersion: mlResult.modelVersion,
-          analysisData: mlResult.rawData as object,
+          analysisData: {
+            ...(mlResult.rawData as object),
+            method: mlResult.method,
+          },
         },
       });
 
