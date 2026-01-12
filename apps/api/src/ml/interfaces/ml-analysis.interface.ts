@@ -10,8 +10,11 @@ export interface IMLAnalysisOutput {
   edges: number;
   surface: number;
   printQuality: number;
+  finalGrade: number;
+  gradeLabel: string;
   confidence: number;
   modelVersion: string;
+  method: string;
   rawData?: Record<string, unknown>;
 }
 
@@ -25,6 +28,6 @@ export interface IMLHealthResponse {
 export interface IMLModelInfo {
   version: string;
   lastUpdated: string;
-  inputShape: number[];
-  outputClasses: number;
+  method: string;
+  description: string;
 }

@@ -152,8 +152,11 @@ export class MlService {
       'edges',
       'surface',
       'printQuality',
+      'finalGrade',
+      'gradeLabel',
       'confidence',
       'modelVersion',
+      'method',
     ];
 
     for (const field of requiredFields) {
@@ -207,20 +210,51 @@ export class MlService {
 
     const randomScore = () => Math.round((7 + Math.random() * 3) * 10) / 10;
 
+    const centering = randomScore();
+    const corners = randomScore();
+    const edges = randomScore();
+    const surface = randomScore();
+    const printQuality = randomScore();
+    const finalGrade = Math.min(centering, corners, edges, surface, printQuality);
+    const gradeLabel = this.getGradeLabel(finalGrade);
+
     return {
-      centering: randomScore(),
-      corners: randomScore(),
-      edges: randomScore(),
-      surface: randomScore(),
-      printQuality: randomScore(),
+      centering,
+      corners,
+      edges,
+      surface,
+      printQuality,
+      finalGrade,
+      gradeLabel,
       confidence: 0.5, // Low confidence = fallback mode
       modelVersion: 'fallback-v1.0.0',
+      method: 'fallback',
       rawData: {
         fallback: true,
         reason: 'ML service unavailable',
         timestamp: new Date().toISOString(),
       },
     };
+  }
+
+  /**
+   * Get grade label from score
+   */
+  private getGradeLabel(score: number): string {
+    const scoreInt = Math.floor(score);
+    const labels: Record<number, string> = {
+      10: 'Gem Mint',
+      9: 'Mint',
+      8: 'Near Mint / Mint',
+      7: 'Near Mint',
+      6: 'Excellent / Near Mint',
+      5: 'Excellent',
+      4: 'Very Good / Excellent',
+      3: 'Very Good',
+      2: 'Good',
+      1: 'Poor',
+    };
+    return labels[scoreInt] || 'Unknown';
   }
 
   /**

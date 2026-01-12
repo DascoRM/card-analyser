@@ -49,6 +49,12 @@ export class GradeResultResponseDto {
   @ApiPropertyOptional()
   confidence?: number;
 
+  @ApiPropertyOptional()
+  modelVersion?: string;
+
+  @ApiPropertyOptional()
+  method?: string;
+
   @ApiProperty()
   createdAt: Date;
 }
