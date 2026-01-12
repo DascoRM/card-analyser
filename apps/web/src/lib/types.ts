@@ -50,6 +50,7 @@ export interface GradeResult {
   gradeLabel: string;
   confidence?: number;
   modelVersion?: string;
+  method?: string;
   createdAt: string;
 }
 

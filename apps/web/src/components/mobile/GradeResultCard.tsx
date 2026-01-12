@@ -1,6 +1,8 @@
 'use client';
 
 import { GradeResult } from '@/lib/types';
+import { MethodBadge } from './MethodBadge';
+import { GradeCriteriaBar } from './GradeCriteriaBar';
 
 interface GradeResultCardProps {
   result: GradeResult;
@@ -43,11 +45,12 @@ export function GradeResultCard({ result }: GradeResultCardProps) {
             {result.finalGrade.toFixed(1)}
           </p>
           <p className="text-xl font-semibold mt-1">{result.gradeLabel}</p>
-          <p className="text-sm mt-2 opacity-80">
-            Echelle {result.scale}
-          </p>
+          <p className="text-sm mt-2 opacity-80">Echelle {result.scale}</p>
         </div>
       </div>
+
+      {/* Badge methode d'analyse */}
+      <MethodBadge method={result.method} modelVersion={result.modelVersion} />
 
       {/* Details des criteres */}
       <div className="p-6">
@@ -55,37 +58,55 @@ export function GradeResultCard({ result }: GradeResultCardProps) {
           Details par critere
         </h3>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {criteria.map((criterion) => (
-            <div key={criterion.label} className="flex items-center gap-3">
-              <span className="text-xl">{criterion.icon}</span>
-              <span className="flex-1 text-gray-700">{criterion.label}</span>
-              <div className="flex items-center gap-2">
-                <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full bg-gradient-to-r ${gradientClass} rounded-full`}
-                    style={{ width: `${criterion.value * 10}%` }}
-                  />
-                </div>
-                <span className="text-sm font-semibold text-gray-900 w-8">
-                  {criterion.value.toFixed(1)}
-                </span>
-              </div>
-            </div>
+            <GradeCriteriaBar
+              key={criterion.label}
+              label={criterion.label}
+              icon={criterion.icon}
+              value={criterion.value}
+            />
           ))}
         </div>
+      </div>
 
-        {/* Confiance du modele */}
-        {result.confidence && (
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-500">Confiance du modele</span>
-              <span className="font-medium text-gray-700">
-                {(result.confidence * 100).toFixed(0)}%
-              </span>
+      {/* Section confiance et metadonnees */}
+      <div className="px-6 pb-6">
+        <div className="pt-4 border-t border-gray-100 space-y-3">
+          {/* Barre de confiance */}
+          {result.confidence !== undefined && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500 flex items-center gap-2">
+                  <span>🎯</span> Niveau de confiance
+                </span>
+                <span className="text-sm font-bold text-gray-900">
+                  {(result.confidence * 100).toFixed(0)}%
+                </span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-400 to-green-500 rounded-full transition-all duration-500"
+                  style={{ width: `${result.confidence * 100}%` }}
+                />
+              </div>
             </div>
+          )}
+
+          {/* Date d'analyse */}
+          <div className="flex items-center justify-between text-xs text-gray-500 pt-2">
+            <span>Analyse le</span>
+            <span className="font-medium">
+              {new Date(result.createdAt).toLocaleString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
