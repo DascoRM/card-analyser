@@ -36,6 +36,7 @@ export default function MobileUploadPage() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [showCardEditor, setShowCardEditor] = useState(false);
   const [isSavingCardInfo, setIsSavingCardInfo] = useState(false);
+  const [identificationAttempted, setIdentificationAttempted] = useState(false);
 
   // Charger les images existantes
   useEffect(() => {
@@ -54,22 +55,24 @@ export default function MobileUploadPage() {
     }
   }, [session, sessionId, router]);
 
-  // Auto-identify card when both images are uploaded
+  // Auto-identify card when both images are uploaded (only once)
   useEffect(() => {
     const shouldIdentify =
       frontImage &&
       backImage &&
       !identification &&
       !isIdentifying &&
+      !identificationAttempted &&
       !session?.cardName; // Don't re-identify if already has card info
 
     if (shouldIdentify) {
+      setIdentificationAttempted(true);
       identify().catch((err) => {
         console.error('Auto-identification failed:', err);
         // Don't block UX on identification failure
       });
     }
-  }, [frontImage, backImage, identification, isIdentifying, session?.cardName, identify]);
+  }, [frontImage, backImage, identification, isIdentifying, identificationAttempted, session?.cardName, identify]);
 
   const handleUpload = async (file: File, side: CardSide) => {
     clearError();
@@ -185,11 +188,11 @@ export default function MobileUploadPage() {
           </div>
         )}
 
-        {/* Errors */}
-        {(uploadError || analyzeError || identifyError) && (
+        {/* Errors - Don't show identify errors as they shouldn't block the user */}
+        {(uploadError || analyzeError) && (
           <div className="mb-6">
             <ErrorMessage
-              message={uploadError || analyzeError || identifyError || ''}
+              message={uploadError || analyzeError || ''}
             />
           </div>
         )}
@@ -198,7 +201,7 @@ export default function MobileUploadPage() {
         <AnalyzeButton
           onAnalyze={handleAnalyze}
           isAnalyzing={isAnalyzing}
-          disabled={isUploading || isIdentifying}
+          disabled={isUploading}
           imagesCount={imagesCount}
         />
 
