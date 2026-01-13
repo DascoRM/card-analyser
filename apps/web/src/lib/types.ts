@@ -18,6 +18,13 @@ export interface Session {
   cardSet?: string;
   cardYear?: number;
   cardType?: string;
+  cardNumber?: string;
+  cardRarity?: string;
+  cardArtist?: string;
+  cardImageUrl?: string;
+  identificationConfidence?: number;
+  identificationMethod?: string;
+  pokemonTcgApiId?: string;
   status: SessionStatus;
   images: SessionImage[];
   gradeResults: GradeResult[];
@@ -87,4 +94,37 @@ export interface SubmitFeedbackDto {
   surface: number;
   printQuality: number;
   comment?: string;
+}
+
+// Card Identification types
+export interface CardIdentification {
+  cardName: string;
+  cardSet?: string;
+  cardYear?: number;
+  cardNumber?: string;
+  cardType?: string;
+  cardRarity?: string;
+  cardArtist?: string;
+  cardImageUrl?: string;
+  confidence: number;
+  method: 'ocr' | 'manual' | 'api' | 'ocr-partial';
+  extractedText?: string[];
+  apiId?: string;
+}
+
+export interface UpdateCardInfoDto {
+  cardName?: string;
+  cardSet?: string;
+  cardYear?: number;
+  cardType?: string;
+}
+
+export interface CardSearchResult {
+  id: string;
+  name: string;
+  set: string;
+  number?: string;
+  rarity?: string;
+  imageUrl?: string;
+  releaseDate?: string;
 }

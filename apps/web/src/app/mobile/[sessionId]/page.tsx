@@ -2,10 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useSession, useImageUpload } from '@/hooks';
-import { ImageUploader, AnalyzeButton } from '@/components/mobile';
+import { useSession, useImageUpload, useCardIdentification } from '@/hooks';
+import {
+  ImageUploader,
+  AnalyzeButton,
+  CardIdentificationBanner,
+  CardInfoEditor,
+} from '@/components/mobile';
 import { LoadingSpinner, ErrorMessage } from '@/components/shared';
-import { SessionImage, CardSide } from '@/lib/types';
+import { SessionImage, CardSide, UpdateCardInfoDto } from '@/lib/types';
 import { analyzeSession, ApiError } from '@/lib/api';
 
 const ANONYMOUS_USER_ID = 1;
@@ -17,11 +22,21 @@ export default function MobileUploadPage() {
 
   const { session, isLoading, error, refetch } = useSession(sessionId);
   const { upload, isUploading, error: uploadError, clearError } = useImageUpload(sessionId);
+  const {
+    identification,
+    isIdentifying,
+    error: identifyError,
+    identify,
+    updateCardInfo,
+  } = useCardIdentification(sessionId, ANONYMOUS_USER_ID);
 
   const [frontImage, setFrontImage] = useState<SessionImage | null>(null);
   const [backImage, setBackImage] = useState<SessionImage | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [showCardEditor, setShowCardEditor] = useState(false);
+  const [isSavingCardInfo, setIsSavingCardInfo] = useState(false);
+  const [identificationAttempted, setIdentificationAttempted] = useState(false);
 
   // Charger les images existantes
   useEffect(() => {
@@ -39,6 +54,25 @@ export default function MobileUploadPage() {
       router.push(`/mobile/${sessionId}/results`);
     }
   }, [session, sessionId, router]);
+
+  // Auto-identify card when both images are uploaded (only once)
+  useEffect(() => {
+    const shouldIdentify =
+      frontImage &&
+      backImage &&
+      !identification &&
+      !isIdentifying &&
+      !identificationAttempted &&
+      !session?.cardName; // Don't re-identify if already has card info
+
+    if (shouldIdentify) {
+      setIdentificationAttempted(true);
+      identify().catch((err) => {
+        console.error('Auto-identification failed:', err);
+        // Don't block UX on identification failure
+      });
+    }
+  }, [frontImage, backImage, identification, isIdentifying, identificationAttempted, session?.cardName, identify]);
 
   const handleUpload = async (file: File, side: CardSide) => {
     clearError();
@@ -72,6 +106,19 @@ export default function MobileUploadPage() {
       }
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleSaveCardInfo = async (info: UpdateCardInfoDto) => {
+    try {
+      setIsSavingCardInfo(true);
+      await updateCardInfo(info);
+      setShowCardEditor(false);
+      refetch(); // Refresh session data
+    } catch (err) {
+      console.error('Failed to save card info:', err);
+    } finally {
+      setIsSavingCardInfo(false);
     }
   };
 
@@ -112,7 +159,7 @@ export default function MobileUploadPage() {
         </div>
 
         {/* Upload Sections */}
-        <div className="space-y-4 mb-8">
+        <div className="space-y-4 mb-6">
           <ImageUploader
             side="FRONT"
             existingImage={frontImage || undefined}
@@ -130,10 +177,23 @@ export default function MobileUploadPage() {
           />
         </div>
 
-        {/* Errors */}
+        {/* Card Identification Banner */}
+        {frontImage && backImage && (
+          <div className="mb-6">
+            <CardIdentificationBanner
+              identification={identification}
+              isIdentifying={isIdentifying}
+              onEdit={() => setShowCardEditor(true)}
+            />
+          </div>
+        )}
+
+        {/* Errors - Don't show identify errors as they shouldn't block the user */}
         {(uploadError || analyzeError) && (
           <div className="mb-6">
-            <ErrorMessage message={uploadError || analyzeError || ''} />
+            <ErrorMessage
+              message={uploadError || analyzeError || ''}
+            />
           </div>
         )}
 
@@ -150,6 +210,19 @@ export default function MobileUploadPage() {
           Session: {sessionId.slice(0, 8)}...
         </p>
       </div>
+
+      {/* Card Info Editor Modal */}
+      <CardInfoEditor
+        isOpen={showCardEditor}
+        onClose={() => setShowCardEditor(false)}
+        onSave={handleSaveCardInfo}
+        initialData={{
+          cardName: identification?.cardName || session?.cardName,
+          cardSet: identification?.cardSet || session?.cardSet,
+          cardYear: identification?.cardYear || session?.cardYear,
+        }}
+        isSaving={isSavingCardInfo}
+      />
     </main>
   );
 }

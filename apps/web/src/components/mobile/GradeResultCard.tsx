@@ -1,6 +1,7 @@
 'use client';
 
 import { GradeResult } from '@/lib/types';
+import { formatGrade } from '@/lib/grade-scale';
 import { MethodBadge } from './MethodBadge';
 import { GradeCriteriaBar } from './GradeCriteriaBar';
 
@@ -8,22 +9,9 @@ interface GradeResultCardProps {
   result: GradeResult;
 }
 
-const gradeColors: Record<number, string> = {
-  10: 'from-yellow-400 to-amber-500',
-  9: 'from-green-400 to-emerald-500',
-  8: 'from-blue-400 to-blue-500',
-  7: 'from-cyan-400 to-cyan-500',
-  6: 'from-purple-400 to-purple-500',
-  5: 'from-orange-400 to-orange-500',
-  4: 'from-red-300 to-red-400',
-  3: 'from-red-400 to-red-500',
-  2: 'from-red-500 to-red-600',
-  1: 'from-gray-400 to-gray-500',
-};
-
 export function GradeResultCard({ result }: GradeResultCardProps) {
-  const gradeInt = Math.floor(result.finalGrade);
-  const gradientClass = gradeColors[gradeInt] || gradeColors[5];
+  const gradeDisplay = formatGrade(result, result.scale);
+  const gradientClass = gradeDisplay.colorGradient;
 
   const criteria = [
     { label: 'Centrage', value: result.centering, icon: '🎯' },
@@ -42,9 +30,20 @@ export function GradeResultCard({ result }: GradeResultCardProps) {
             Note finale
           </p>
           <p className="text-6xl font-bold mt-1">
-            {result.finalGrade.toFixed(1)}
+            {gradeDisplay.displayScore}
           </p>
-          <p className="text-xl font-semibold mt-1">{result.gradeLabel}</p>
+          <p className="text-xl font-semibold mt-1">{gradeDisplay.label}</p>
+
+          {/* Badge special pour grade Collector (10+) */}
+          {gradeDisplay.displayScore === '10+' && (
+            <div className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full">
+              <span className="text-lg">🏆</span>
+              <span className="text-sm font-bold uppercase tracking-wider">
+                Grade Collector
+              </span>
+            </div>
+          )}
+
           <p className="text-sm mt-2 opacity-80">Echelle {result.scale}</p>
         </div>
       </div>

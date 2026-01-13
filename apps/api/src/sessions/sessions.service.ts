@@ -4,17 +4,22 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma';
 import { MlService } from '../ml';
+import { CardsService, CardIdentificationDto } from '../cards';
+import { OcrService } from '../ocr';
 import { CreateSessionDto, UpdateSessionDto, UploadImageDto } from './dto';
 import {
   SessionStatus,
   GradeScale,
   CardSide,
-  GRADE_LABELS,
+  getGradeLabelForScale,
 } from './enums';
 import { IGradeCriteria } from './interfaces';
+import { mapToPCAScale } from './utils';
 import { Session, SessionImage, GradeResult } from '@prisma/client';
 
 interface SessionFilters {
@@ -34,6 +39,9 @@ export class SessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mlService: MlService,
+    @Inject(forwardRef(() => CardsService))
+    private readonly cardsService: CardsService,
+    private readonly ocrService: OcrService,
   ) {}
 
   // ==================== CRUD ====================
@@ -330,16 +338,165 @@ export class SessionsService {
     });
   }
 
+  // ==================== CARD IDENTIFICATION ====================
+
+  /**
+   * Identify card from uploaded images using OCR + API matching
+   */
+  async identifyCard(
+    sessionId: string,
+    userId: number,
+  ): Promise<CardIdentificationDto> {
+    await this.validateUserOwnership(sessionId, userId);
+
+    // Get session images
+    const images = await this.prisma.sessionImage.findMany({
+      where: { sessionId },
+    });
+
+    const frontImage = images.find((img) => img.side === CardSide.FRONT);
+
+    if (!frontImage) {
+      throw new BadRequestException('No front image found for identification');
+    }
+
+    this.logger.log(`Starting card identification for session ${sessionId}`);
+
+    try {
+      // For now, we'll use a simple approach:
+      // Try to extract text from the image and match it with the card database
+      // In a full implementation, this would call the ML service for OCR
+
+      // Simulate OCR extraction (in reality, this would call mlService.extractCardInfo)
+      const extractedText = await this.extractTextFromImage(frontImage.url);
+
+      this.logger.log(
+        `Extracted text for session ${sessionId}: ${JSON.stringify(extractedText)}`,
+      );
+
+      // Try to match the card using CardsService
+      const matchedCard = await this.cardsService.matchCard({
+        extractedText,
+      });
+
+      if (matchedCard) {
+        // Update session with matched card info
+        await this.prisma.session.update({
+          where: { id: sessionId },
+          data: {
+            cardName: matchedCard.name,
+            cardSet: matchedCard.set,
+            cardYear: this.parseYear(matchedCard.releaseDate),
+            cardNumber: matchedCard.number,
+            cardRarity: matchedCard.rarity,
+            cardArtist: matchedCard.artist,
+            cardImageUrl: matchedCard.imageUrl,
+            identificationConfidence: 0.8, // High confidence when matched
+            identificationMethod: 'ocr',
+            pokemonTcgApiId: matchedCard.id,
+          },
+        });
+
+        return {
+          cardName: matchedCard.name,
+          cardSet: matchedCard.set,
+          cardYear: this.parseYear(matchedCard.releaseDate),
+          cardNumber: matchedCard.number,
+          cardType: matchedCard.supertype,
+          cardRarity: matchedCard.rarity,
+          cardArtist: matchedCard.artist,
+          cardImageUrl: matchedCard.imageUrl,
+          confidence: 0.8,
+          method: 'ocr',
+          extractedText,
+          apiId: matchedCard.id,
+        };
+      }
+
+      // Partial identification (couldn't match with database)
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          cardName: extractedText[0] || 'Unknown',
+          identificationConfidence: 0.3,
+          identificationMethod: 'ocr-partial',
+        },
+      });
+
+      return {
+        cardName: extractedText[0] || 'Unknown',
+        confidence: 0.3,
+        method: 'ocr-partial',
+        extractedText,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Card identification failed for session ${sessionId}: ${error.message}`,
+      );
+
+      // Return low confidence result
+      return {
+        cardName: 'Unknown',
+        confidence: 0,
+        method: 'ocr',
+        extractedText: [],
+      };
+    }
+  }
+
+  /**
+   * Update card info manually (user correction)
+   */
+  async updateCardInfo(
+    sessionId: string,
+    userId: number,
+    cardInfo: {
+      cardName?: string;
+      cardSet?: string;
+      cardYear?: number;
+      cardType?: string;
+    },
+  ): Promise<Session> {
+    await this.validateUserOwnership(sessionId, userId);
+
+    return this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        ...cardInfo,
+        identificationConfidence: 1, // Manual = high confidence
+        identificationMethod: 'manual',
+      },
+    });
+  }
+
+  /**
+   * Extract text from image using Tesseract OCR
+   */
+  private async extractTextFromImage(imagePath: string): Promise<string[]> {
+    this.logger.log(`Extracting text from: ${imagePath}`);
+    return this.ocrService.extractText(imagePath);
+  }
+
+  private parseYear(dateString?: string): number | undefined {
+    if (!dateString) return undefined;
+    const year = parseInt(dateString.substring(0, 4), 10);
+    return isNaN(year) ? undefined : year;
+  }
+
   // ==================== GRADING LOGIC ====================
 
   calculateFinalGrade(criteria: IGradeCriteria): number {
     const { centering, corners, edges, surface, printQuality } = criteria;
-    return Math.min(centering, corners, edges, surface, printQuality);
+
+    // Etape 1: calculer le score brut (minimum des criteres)
+    const rawScore = Math.min(centering, corners, edges, surface, printQuality);
+
+    // Etape 2: appliquer les regles PCA strictes
+    return mapToPCAScale(rawScore, criteria);
   }
 
-  getGradeLabel(finalGrade: number): string {
-    const rounded = Math.floor(finalGrade);
-    return GRADE_LABELS[rounded] || 'Unknown';
+  getGradeLabel(finalGrade: number, scale: GradeScale = GradeScale.PCA): string {
+    return getGradeLabelForScale(finalGrade, scale);
   }
 
   // ==================== VALIDATION ====================

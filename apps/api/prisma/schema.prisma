@@ -52,6 +52,15 @@ model Session {
   cardSet     String?
   cardYear    Int?
   cardType    String?
+  cardNumber  String?       // Ex: "025/102"
+  cardRarity  String?       // Ex: "Rare Holo"
+  cardArtist  String?       // Nom de l'artiste
+  cardImageUrl String?      // URL image de référence
+
+  // Métadonnées d'identification
+  identificationConfidence Float?    // Score de confiance 0-1
+  identificationMethod     String?   // "ocr", "manual", "api"
+  pokemonTcgApiId          String?   // ID externe PokémonTCG API
 
   // État de la session
   status      SessionStatus @default(PENDING)

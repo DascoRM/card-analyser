@@ -12,6 +12,11 @@ import {
   MlServiceUnavailableException,
   MlAnalysisFailedException,
 } from './exceptions';
+import {
+  GradeScale,
+  getGradeLabelForScale,
+} from '../sessions/enums';
+import { mapToPCAScale } from '../sessions/utils';
 
 @Injectable()
 export class MlService {
@@ -215,7 +220,11 @@ export class MlService {
     const edges = randomScore();
     const surface = randomScore();
     const printQuality = randomScore();
-    const finalGrade = Math.min(centering, corners, edges, surface, printQuality);
+
+    // Calculer le score brut puis appliquer les regles PCA strictes
+    const rawScore = Math.min(centering, corners, edges, surface, printQuality);
+    const criteria = { centering, corners, edges, surface, printQuality };
+    const finalGrade = mapToPCAScale(rawScore, criteria);
     const gradeLabel = this.getGradeLabel(finalGrade);
 
     return {
@@ -238,23 +247,13 @@ export class MlService {
   }
 
   /**
-   * Get grade label from score
+   * Get grade label from score using PCA scale
    */
-  private getGradeLabel(score: number): string {
-    const scoreInt = Math.floor(score);
-    const labels: Record<number, string> = {
-      10: 'Gem Mint',
-      9: 'Mint',
-      8: 'Near Mint / Mint',
-      7: 'Near Mint',
-      6: 'Excellent / Near Mint',
-      5: 'Excellent',
-      4: 'Very Good / Excellent',
-      3: 'Very Good',
-      2: 'Good',
-      1: 'Poor',
-    };
-    return labels[scoreInt] || 'Unknown';
+  private getGradeLabel(
+    score: number,
+    scale: GradeScale = GradeScale.PCA,
+  ): string {
+    return getGradeLabelForScale(score, scale);
   }
 
   /**
