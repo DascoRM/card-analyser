@@ -37,7 +37,7 @@ export function GradeCriteriaBar({
           <span className="text-sm font-medium text-gray-700">{label}</span>
         </div>
         <span className={`text-lg font-bold ${getTextColor(value)}`}>
-          {value.toFixed(1)}
+          {value % 1 === 0 ? value.toString() : value.toFixed(1)}
         </span>
       </div>
 

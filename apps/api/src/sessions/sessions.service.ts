@@ -10,14 +10,16 @@ import {
 import { PrismaService } from '../prisma';
 import { MlService } from '../ml';
 import { CardsService, CardIdentificationDto } from '../cards';
+import { OcrService } from '../ocr';
 import { CreateSessionDto, UpdateSessionDto, UploadImageDto } from './dto';
 import {
   SessionStatus,
   GradeScale,
   CardSide,
-  GRADE_LABELS,
+  getGradeLabelForScale,
 } from './enums';
 import { IGradeCriteria } from './interfaces';
+import { mapToPCAScale } from './utils';
 import { Session, SessionImage, GradeResult } from '@prisma/client';
 
 interface SessionFilters {
@@ -39,6 +41,7 @@ export class SessionsService {
     private readonly mlService: MlService,
     @Inject(forwardRef(() => CardsService))
     private readonly cardsService: CardsService,
+    private readonly ocrService: OcrService,
   ) {}
 
   // ==================== CRUD ====================
@@ -467,18 +470,11 @@ export class SessionsService {
   }
 
   /**
-   * Extract text from image (simplified version)
-   * In a full implementation, this would call the ML service OCR endpoint
+   * Extract text from image using Tesseract OCR
    */
   private async extractTextFromImage(imagePath: string): Promise<string[]> {
-    // For now, return empty array - in production, this would call:
-    // return this.mlService.extractCardInfo(imagePath);
-
-    // Simulate some extracted text based on the filename for testing
-    this.logger.log(`Would extract text from: ${imagePath}`);
-
-    // Return empty for now - the actual OCR implementation would go in ML service
-    return [];
+    this.logger.log(`Extracting text from: ${imagePath}`);
+    return this.ocrService.extractText(imagePath);
   }
 
   private parseYear(dateString?: string): number | undefined {
@@ -491,12 +487,16 @@ export class SessionsService {
 
   calculateFinalGrade(criteria: IGradeCriteria): number {
     const { centering, corners, edges, surface, printQuality } = criteria;
-    return Math.min(centering, corners, edges, surface, printQuality);
+
+    // Etape 1: calculer le score brut (minimum des criteres)
+    const rawScore = Math.min(centering, corners, edges, surface, printQuality);
+
+    // Etape 2: appliquer les regles PCA strictes
+    return mapToPCAScale(rawScore, criteria);
   }
 
-  getGradeLabel(finalGrade: number): string {
-    const rounded = Math.floor(finalGrade);
-    return GRADE_LABELS[rounded] || 'Unknown';
+  getGradeLabel(finalGrade: number, scale: GradeScale = GradeScale.PCA): string {
+    return getGradeLabelForScale(finalGrade, scale);
   }
 
   // ==================== VALIDATION ====================
