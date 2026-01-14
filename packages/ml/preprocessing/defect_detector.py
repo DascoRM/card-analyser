@@ -110,6 +110,9 @@ class DefectDetector:
         """
         Detect scratches on card surface using line detection.
 
+        STABLE VERSION (v1.0.0):
+        Much stricter thresholds to avoid detecting artwork details as scratches.
+
         Args:
             surface: BGR image of card surface
 
@@ -122,44 +125,45 @@ class DefectDetector:
         # Convert to grayscale
         gray = cv2.cvtColor(surface, cv2.COLOR_BGR2GRAY)
 
-        # Apply Gaussian blur
-        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+        # Apply stronger Gaussian blur to ignore small artwork details
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
-        # Edge detection
-        edges = cv2.Canny(blurred, 50, 150)
+        # Edge detection with higher thresholds
+        edges = cv2.Canny(blurred, 80, 200)
 
-        # Probabilistic Hough Line Transform
+        # STRICT Hough Transform - only detect long continuous lines
         lines = cv2.HoughLinesP(
             edges,
             rho=1,
             theta=np.pi / 180,
-            threshold=50,
-            minLineLength=20,
-            maxLineGap=5
+            threshold=150,      # Was 50 - only strong lines
+            minLineLength=100,  # Was 20 - scratches are LONG
+            maxLineGap=3        # Was 5 - scratches are CONTINUOUS
         )
 
         if lines is None:
             return {'count': 0, 'severity': 0.0, 'lines': []}
 
-        # Filter lines that look like scratches (long, thin)
+        # Filter lines that look like scratches (very long)
         scratch_lines = []
         for line in lines:
             x1, y1, x2, y2 = line[0]
             length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-            # Scratches are typically longer than 30 pixels
-            if length > 30:
+            # Scratches must be very long (was 30, now 80)
+            if length > 80:
                 scratch_lines.append({
-                    'start': (x1, y1),
-                    'end': (x2, y2),
-                    'length': length
+                    'start': (int(x1), int(y1)),
+                    'end': (int(x2), int(y2)),
+                    'length': float(length)
                 })
 
-        # Calculate severity based on total scratch length
+        # Less aggressive severity calculation
         total_length = sum(s['length'] for s in scratch_lines)
         surface_diagonal = np.sqrt(surface.shape[0]**2 + surface.shape[1]**2)
 
-        severity = min((total_length / surface_diagonal) * 10, 100)
+        # Reduced multiplier: was *10, now *5
+        severity = min((total_length / surface_diagonal) * 5, 100)
 
         return {
             'count': len(scratch_lines),
@@ -170,6 +174,9 @@ class DefectDetector:
     def detect_creases(self, surface: np.ndarray) -> Dict[str, any]:
         """
         Detect creases and folds on card surface.
+
+        STABLE VERSION (v1.0.0):
+        Stricter thresholds - creases are very distinct features.
 
         Args:
             surface: BGR image of card surface
@@ -189,25 +196,25 @@ class DefectDetector:
         # Detect long edges that could be creases
         edges = cv2.Canny(filtered, 30, 100)
 
-        # Look for long continuous lines (creases are typically straight)
+        # STRICTER Hough Transform for creases
         lines = cv2.HoughLinesP(
             edges,
             rho=1,
             theta=np.pi / 180,
-            threshold=100,  # Higher threshold for creases
-            minLineLength=50,  # Creases are longer
-            maxLineGap=10
+            threshold=120,      # Was 100
+            minLineLength=80,   # Was 50
+            maxLineGap=8        # Was 10
         )
 
         if lines is None:
             return {'detected': False, 'count': 0, 'severity': 0.0}
 
-        # Filter for crease-like lines (long, straight)
+        # Filter for crease-like lines (very long, straight)
         crease_count = 0
         for line in lines:
             x1, y1, x2, y2 = line[0]
             length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-            if length > 100:  # Very long lines are likely creases
+            if length > 120:  # Was 100 - creases must be even longer
                 crease_count += 1
 
         severity = min(crease_count * 20, 100)
@@ -276,6 +283,9 @@ class DefectDetector:
         """
         Complete analysis of a corner.
 
+        STABLE VERSION (v1.0.0):
+        Reduced penalties to avoid over-penalizing normal cards.
+
         Args:
             corner: BGR image of corner
             position: Corner position ('top_left', 'top_right', etc.)
@@ -287,9 +297,9 @@ class DefectDetector:
         sharpness = self.detect_corner_sharpness(corner)
 
         # Calculate corner score (1-10)
-        # Perfect corner: 0% whitening, 100% sharpness
-        whitening_penalty = min(whitening / 2, 5)  # Max 5 point penalty
-        sharpness_penalty = max(0, (100 - sharpness) / 20)  # Max 5 point penalty
+        # REDUCED PENALTIES (v1.0.0-stable)
+        whitening_penalty = min(whitening / 6, 3)   # Was /2, max 5 -> now /6, max 3
+        sharpness_penalty = max(0, (100 - sharpness) / 30)  # Was /20 -> now /30
 
         score = max(1, 10 - whitening_penalty - sharpness_penalty)
 
@@ -305,6 +315,9 @@ class DefectDetector:
         """
         Complete analysis of an edge.
 
+        STABLE VERSION (v1.0.0):
+        Reduced penalties to avoid over-penalizing normal cards.
+
         Args:
             edge: BGR image of edge
             position: Edge position ('top', 'right', 'bottom', 'left')
@@ -315,7 +328,8 @@ class DefectDetector:
         whitening = self.detect_whitening(edge)
 
         # Calculate edge score
-        whitening_penalty = min(whitening / 1.5, 6)  # Edges are stricter
+        # REDUCED PENALTY (v1.0.0-stable)
+        whitening_penalty = min(whitening / 4, 3)  # Was /1.5, max 6 -> now /4, max 3
 
         score = max(1, 10 - whitening_penalty)
 
@@ -352,7 +366,8 @@ class DefectDetector:
         total_severity = (scratch_severity * 0.6 + crease_severity * 0.4)
 
         # Calculate score
-        score = max(1, 10 - (total_severity / 10))
+        # REDUCED PENALTY (v1.0.0-stable): /15 instead of /10
+        score = max(1, 10 - (total_severity / 15))
 
         return {
             'score': round(score, 1),
@@ -374,22 +389,60 @@ class DefectDetector:
         """
         Analyze print quality (factory defects only).
 
+        STABLE VERSION (v1.0.0):
+        Uses simplified brightness uniformity detection instead of
+        ink_dots/color_variance which generates too many false positives
+        on Pokemon card artwork.
+
         Args:
             front: BGR image of card front
 
         Returns:
-            Print quality analysis
+            Print quality analysis with conservative scoring
         """
-        defects = self.detect_print_defects(front)
+        if front is None or front.size == 0:
+            return {
+                'score': 9.0,
+                'ink_dots': 0,
+                'color_issues': False,
+                'defects': [],
+                'method': 'simplified'
+            }
 
-        # Calculate score
-        score = max(1, 10 - (defects['severity'] / 10))
+        # SIMPLIFIED APPROACH: Check brightness uniformity by blocks
+        # Real print defects cause LARGE-SCALE variations, not small details
+        gray = cv2.cvtColor(front, cv2.COLOR_BGR2GRAY)
+
+        # Divide image into 5x5 grid
+        h, w = gray.shape
+        block_h, block_w = h // 5, w // 5
+
+        brightness_values = []
+        for i in range(5):
+            for j in range(5):
+                block = gray[i*block_h:(i+1)*block_h, j*block_w:(j+1)*block_w]
+                brightness_values.append(np.mean(block))
+
+        # Check for extreme brightness variations (real print defects)
+        brightness_std = np.std(brightness_values)
+        brightness_range = np.max(brightness_values) - np.min(brightness_values)
+
+        # Conservative thresholds: only flag extreme cases
+        if brightness_std > 50 or brightness_range > 150:
+            score = 7.0
+            defects = ['possible_print_defect']
+        else:
+            score = 9.0
+            defects = []
 
         return {
-            'score': round(score, 1),
-            'ink_dots': defects['ink_dots'],
-            'color_issues': defects['color_issues'],
-            'defects': [] if defects['severity'] < 10 else ['print_defects']
+            'score': float(score),
+            'ink_dots': 0,
+            'color_issues': False,
+            'brightness_std': round(float(brightness_std), 2),
+            'brightness_range': round(float(brightness_range), 2),
+            'defects': defects,
+            'method': 'simplified_v1.0'
         }
 
     def _list_corner_defects(self, whitening: float, sharpness: float) -> List[str]:

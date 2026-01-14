@@ -298,16 +298,20 @@ class RuleBasedGrader:
         """
         Calculate confidence score based on image quality.
 
+        STABLE VERSION (v1.0.0):
+        Applies a penalty factor to reflect rule-based system limitations.
+
         Factors:
         - Image sharpness (blur detection)
         - Lighting (brightness analysis)
         - Card detection success
+        - System limitations penalty (0.85 factor)
         """
         # Check if card was detected (vs using full image)
         front_detected = front_card.shape != front_orig.shape
         back_detected = back_card.shape != back_orig.shape
 
-        detection_score = 1.0 if (front_detected and back_detected) else 0.7
+        detection_score = 1.0 if (front_detected and back_detected) else 0.6
 
         # Analyze image quality
         front_quality = self._assess_image_quality(front_orig)
@@ -315,8 +319,14 @@ class RuleBasedGrader:
 
         quality_score = (front_quality + back_quality) / 2
 
-        # Combine
-        confidence = detection_score * 0.4 + quality_score * 0.6
+        # Base confidence from detection and quality
+        base_confidence = detection_score * 0.4 + quality_score * 0.6
+
+        # Apply penalty for rule-based system limitations
+        # Until ML model is trained, we use simplified printQuality detection
+        method_penalty = 0.85
+
+        confidence = base_confidence * method_penalty
 
         return round(confidence, 3)
 
