@@ -16,7 +16,7 @@ import {
   GradeScale,
   getGradeLabelForScale,
 } from '../sessions/enums';
-import { mapToPCAScale } from '../sessions/utils';
+import { mapToPCAScale, normalizeAllCriteria } from '../sessions/utils';
 
 @Injectable()
 export class MlService {
@@ -195,7 +195,36 @@ export class MlService {
       );
     }
 
-    return response as unknown as IMLAnalysisOutput;
+    // Normaliser les criteres selon l'echelle PCA (pas de decimales sauf 9.5)
+    const rawCriteria = {
+      centering: response.centering as number,
+      corners: response.corners as number,
+      edges: response.edges as number,
+      surface: response.surface as number,
+      printQuality: response.printQuality as number,
+    };
+    const normalizedCriteria = normalizeAllCriteria(rawCriteria);
+
+    // Recalculer la note finale avec les criteres normalises
+    const rawScore = Math.min(
+      normalizedCriteria.centering,
+      normalizedCriteria.corners,
+      normalizedCriteria.edges,
+      normalizedCriteria.surface,
+      normalizedCriteria.printQuality,
+    );
+    const finalGrade = mapToPCAScale(rawScore, normalizedCriteria);
+    const gradeLabel = this.getGradeLabel(finalGrade);
+
+    return {
+      ...normalizedCriteria,
+      finalGrade,
+      gradeLabel,
+      confidence: response.confidence as number,
+      modelVersion: response.modelVersion as string,
+      method: response.method as string,
+      rawData: response.rawData,
+    } as IMLAnalysisOutput;
   }
 
   /**
@@ -215,24 +244,31 @@ export class MlService {
 
     const randomScore = () => Math.round((7 + Math.random() * 3) * 10) / 10;
 
-    const centering = randomScore();
-    const corners = randomScore();
-    const edges = randomScore();
-    const surface = randomScore();
-    const printQuality = randomScore();
+    // Generer des scores bruts
+    const rawCriteria = {
+      centering: randomScore(),
+      corners: randomScore(),
+      edges: randomScore(),
+      surface: randomScore(),
+      printQuality: randomScore(),
+    };
+
+    // Normaliser selon l'echelle PCA (pas de decimales sauf 9.5)
+    const criteria = normalizeAllCriteria(rawCriteria);
 
     // Calculer le score brut puis appliquer les regles PCA strictes
-    const rawScore = Math.min(centering, corners, edges, surface, printQuality);
-    const criteria = { centering, corners, edges, surface, printQuality };
+    const rawScore = Math.min(
+      criteria.centering,
+      criteria.corners,
+      criteria.edges,
+      criteria.surface,
+      criteria.printQuality,
+    );
     const finalGrade = mapToPCAScale(rawScore, criteria);
     const gradeLabel = this.getGradeLabel(finalGrade);
 
     return {
-      centering,
-      corners,
-      edges,
-      surface,
-      printQuality,
+      ...criteria,
       finalGrade,
       gradeLabel,
       confidence: 0.5, // Low confidence = fallback mode

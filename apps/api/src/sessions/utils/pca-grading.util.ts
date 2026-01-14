@@ -55,6 +55,42 @@ function areAllCriteriaPerfect(criteria: IGradeCriteria): boolean {
 }
 
 /**
+ * Normalise un score individuel (critere) vers l'echelle PCA
+ *
+ * Regles:
+ * - 10 reste 10
+ * - 9.5-9.99 -> 9.5
+ * - Sinon arrondi inferieur (5.9 -> 5, 7.3 -> 7)
+ *
+ * @param rawScore - Score brut du critere
+ * @returns Score normalise (entier ou 9.5 ou 10)
+ */
+export function normalizeCriteriaScore(rawScore: number): number {
+  if (rawScore >= 10) {
+    return 10;
+  }
+  if (rawScore >= 9.5) {
+    return 9.5;
+  }
+  return Math.max(1, Math.floor(rawScore));
+}
+
+/**
+ * Normalise tous les criteres d'un objet IGradeCriteria
+ * @param criteria - Criteres bruts
+ * @returns Criteres normalises selon l'echelle PCA
+ */
+export function normalizeAllCriteria(criteria: IGradeCriteria): IGradeCriteria {
+  return {
+    centering: normalizeCriteriaScore(criteria.centering),
+    corners: normalizeCriteriaScore(criteria.corners),
+    edges: normalizeCriteriaScore(criteria.edges),
+    surface: normalizeCriteriaScore(criteria.surface),
+    printQuality: normalizeCriteriaScore(criteria.printQuality),
+  };
+}
+
+/**
  * Validation stricte: verifie qu'un score respecte l'echelle PCA
  * @returns true si le score est une valeur PCA valide
  */
